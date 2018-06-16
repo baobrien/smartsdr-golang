@@ -1,0 +1,45 @@
+/* SPDX-License-Identifier: GPL-3.0
+ *
+ * Copyright (C) 2018 Brady OBrien. All Rights Reserved.
+ */
+
+package main
+
+/* Header of VITA-49 packet without payload */
+type VitaIfDataHeader struct {
+	Header         uint32
+	StreamID       uint32
+	ClassIDH       uint32
+	ClassIDL       uint32
+	TimestampInt   uint32
+	TimestampFracH uint32
+	TimestampFracL uint32
+}
+
+/* Constants taken from vita.h */
+const VITA_HEADER_PACKET_TYPE_MASK uint32 = 0xF0000000
+const VITA_PACKET_TYPE_IF_DATA uint32 = 0x00000000
+const VITA_PACKET_TYPE_IF_DATA_WITH_STREAM_ID uint32 = 0x10000000
+const VITA_PACKET_TYPE_EXT_DATA uint32 = 0x20000000
+const VITA_PACKET_TYPE_EXT_DATA_WITH_STREAM_ID uint32 = 0x30000000
+const VITA_PACKET_TYPE_CONTEXT uint32 = 0x40000000
+const VITA_PACKET_TYPE_EXT_CONTEXT uint32 = 0x50000000
+const VITA_HEADER_C_MASK uint32 = 0x08000000
+const VITA_HEADER_CLASS_ID_PRESENT uint32 = 0x08000000
+const VITA_HEADER_T_MASK uint32 = 0x04000000
+const VITA_HEADER_TRAILER_PRESENT uint32 = 0x04000000
+const VITA_HEADER_TSI_MASK uint32 = 0x00C00000
+const VITA_TSI_NONE uint32 = 0x00000000
+const VITA_TSI_UTC uint32 = 0x00400000
+const VITA_TSI_GPS uint32 = 0x00800000
+const VITA_TSI_OTHER uint32 = 0x00C00000
+const VITA_HEADER_TSF_MASK uint32 = 0x00300000
+const VITA_TSF_NONE uint32 = 0x00000000
+const VITA_TSF_SAMPLE_COUNT uint32 = 0x00100000
+const VITA_TSF_REAL_TIME uint32 = 0x00200000
+const VITA_TSF_FREE_RUNNING uint32 = 0x00300000
+const VITA_HEADER_PACKET_COUNT_MASK uint32 = 0x000F0000
+const VITA_HEADER_PACKET_SIZE_MASK uint32 = 0x0000FFFF
+const VITA_CLASS_ID_OUI_MASK uint32 = 0x00FFFFFF
+const VITA_CLASS_ID_INFORMATION_CLASS_MASK uint32 = 0xFFFF0000
+const VITA_CLASS_ID_PACKET_CLASS_MASK uint32 = 0x0000FFFF

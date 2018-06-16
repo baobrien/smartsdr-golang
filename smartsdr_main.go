@@ -7,22 +7,19 @@ package main
 
 import (
 	"fmt"
-	"net"
 	"os"
 	"time"
 )
 
 func topError(err error) {
 	fmt.Printf("Error in main: %v\n", err)
+	os.Exit(1)
 }
 
 func main() {
 	/* Create and start the discovery client */
-	discListenAddr, err := net.ResolveUDPAddr("udp", ":4992")
-	if err != nil {
-		topError(err)
-	}
-	disClient, err := CreateDiscoveryClient(discListenAddr)
+
+	disClient, err := CreateDiscoveryClient("0.0.0.0:4992")
 	if err != nil {
 		topError(err)
 	}
@@ -38,5 +35,5 @@ func main() {
 		fmt.Println("Failed to discover any radios in 30 seconds")
 		disClient.Close()
 	}
-	os.Exit(3)
+	os.Exit(0)
 }

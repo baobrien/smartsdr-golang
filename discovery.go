@@ -14,6 +14,8 @@ import (
 	"fmt"
 	"net"
 	"os"
+
+	"github.com/libp2p/go-reuseport"
 )
 import (
 	"errors"
@@ -37,7 +39,7 @@ type DiscoveryClient struct {
 	errors    chan error
 	radios    chan *Radio
 	quit      chan int
-	udplisten *net.UDPConn
+	udplisten net.PacketConn
 }
 
 func (radio *Radio) String() string {
@@ -53,15 +55,18 @@ func (radio *Radio) String() string {
 		radio.status)
 }
 
-func CreateDiscoveryClient(addr *net.UDPAddr) (*DiscoveryClient, error) {
+func CreateDiscoveryClient(addr string) (*DiscoveryClient, error) {
 	discli := &DiscoveryClient{
 		errors: make(chan error),
 		radios: make(chan *Radio),
 		quit:   make(chan int),
 	}
-	ulisten, err := net.ListenUDP("udp", addr)
+	//ulisten, err := net.ListenUDP("udp", addr)
+	ulisten, err := reuseport.ListenPacket("udp", addr)
 	if err != nil {
-		ulisten.Close()
+		if ulisten != nil {
+			ulisten.Close()
+		}
 		return nil, err
 	}
 	discli.udplisten = ulisten
@@ -124,7 +129,7 @@ func (discli *DiscoveryClient) doDiscoveryListen() {
 		case <-func() chan int {
 			dc := make(chan int)
 			go func() {
-				n, err := discli.udplisten.Read(buf)
+				n, _, err := discli.udplisten.ReadFrom(buf)
 				if err != nil {
 					discli.errors <- err
 					discli.quit <- 1

@@ -12,13 +12,11 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"net"
 	"os"
-
-	"github.com/libp2p/go-reuseport"
 )
 import (
 	"errors"
+	"net"
 )
 
 type Radio struct {
@@ -61,8 +59,11 @@ func CreateDiscoveryClient(addr string) (*DiscoveryClient, error) {
 		radios: make(chan *Radio),
 		quit:   make(chan int),
 	}
-	//ulisten, err := net.ListenUDP("udp", addr)
-	ulisten, err := reuseport.ListenPacket("udp", addr)
+	//addr2, err := net.ResolveUDPAddr("udp", addr)
+	//ulisten, err := net.ListenUDP("udp", addr2)
+	//ulisten, err := reuseport.ListenPacket("udp", addr)
+	ulistenfile, err := discoveryGetUDPListener()
+	ulisten, err := net.FilePacketConn(ulistenfile)
 	if err != nil {
 		if ulisten != nil {
 			ulisten.Close()

@@ -32,6 +32,7 @@ func main() {
 	case radio := <-disClient.radios:
 		fmt.Println("Found Radio:", radio)
 		disClient.Close()
+		fmt.Println("Connecting to radio")
 		conn, err := net.Dial("tcp", radio.ip+":4992")
 		if err != nil {
 			topError(err)
@@ -40,6 +41,7 @@ func main() {
 		if err != nil {
 			topError(err)
 		}
+		go apiface.InterfaceLoop()
 		restr, restat, err := apiface.DoCommand("info", 10*time.Second)
 		if err != nil {
 			topError(err)

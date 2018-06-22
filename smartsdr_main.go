@@ -6,6 +6,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -31,11 +32,25 @@ func main() {
 	case radio := <-disClient.radios:
 		fmt.Println("Found Radio:", radio)
 		disClient.Close()
+		conn, err := net.Dial("tcp", radio.ip+":4992")
+		if err != nil {
+			topError(err)
+		}
+		apiface, err := InitTcpInterface(conn)
+		if err != nil {
+			topError(err)
+		}
+		restr, restat, err := apiface.DoCommand("info", 10*time.Second)
+		if err != nil {
+			topError(err)
+		}
+		fmt.Printf("Command returned status %x\n", restat)
+		fmt.Printf("%s\n", restr)
 	case err = <-disClient.errors:
 		topError(err)
 	case <-time.After(time.Second * 30):
-		fmt.Println("Failed to discover any radios in 30 seconds")
 		disClient.Close()
+		topError(errors.New("Failed to find client after 30 seconds"))
 	}
 
 	os.Exit(0)

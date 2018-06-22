@@ -37,5 +37,6 @@ func main() {
 		fmt.Println("Failed to discover any radios in 30 seconds")
 		disClient.Close()
 	}
+
 	os.Exit(0)
 }

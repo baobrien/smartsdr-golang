@@ -7,6 +7,7 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"time"
 )
@@ -19,7 +20,8 @@ func topError(err error) {
 func main() {
 	/* Create and start the discovery client */
 
-	disClient, err := CreateDiscoveryClient("0.0.0.0:4992")
+	addr, err := net.ResolveUDPAddr("udp", "[::]:4992")
+	disClient, err := CreateDiscoveryClient(addr)
 	if err != nil {
 		topError(err)
 	}

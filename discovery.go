@@ -53,16 +53,13 @@ func (radio *Radio) String() string {
 		radio.status)
 }
 
-func CreateDiscoveryClient(addr string) (*DiscoveryClient, error) {
+func CreateDiscoveryClient(addr *net.UDPAddr) (*DiscoveryClient, error) {
 	discli := &DiscoveryClient{
 		errors: make(chan error),
 		radios: make(chan *Radio),
 		quit:   make(chan int),
 	}
-	//addr2, err := net.ResolveUDPAddr("udp", addr)
-	//ulisten, err := net.ListenUDP("udp", addr2)
-	//ulisten, err := reuseport.ListenPacket("udp", addr)
-	ulistenfile, err := discoveryGetUDPListener()
+	ulistenfile, err := discoveryGetUDPListener(addr)
 	ulisten, err := net.FilePacketConn(ulistenfile)
 	if err != nil {
 		if ulisten != nil {

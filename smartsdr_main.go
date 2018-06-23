@@ -38,6 +38,9 @@ func main() {
 			topError(err)
 		}
 		apiface, err := InitTcpInterface(conn)
+		apiface.RegisterStatusHandler("eq", func(handler uint32, s string) {
+			fmt.Println("status:", s)
+		})
 		if err != nil {
 			topError(err)
 		}
@@ -49,7 +52,7 @@ func main() {
 		fmt.Printf("Command returned status %x\n", restat)
 		fmt.Printf("%s\n", restr)
 		fmt.Printf("API Handle is %x\n", apiface.Handle)
-		fmt.Printf("API Version is %v\n", apiface.Version)
+		fmt.Println("API Version is", apiface.Version)
 	case err = <-disClient.errors:
 		topError(err)
 	case <-time.After(time.Second * 30):

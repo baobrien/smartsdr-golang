@@ -29,19 +29,27 @@ type InflightCmd struct {
 	RespChan    chan *CmdResponse
 }
 
-type TcpInterface struct {
-	Handle       uint32
-	Version      FlexVersion
-	CmdSeq       uint32
-	InflightCmds map[uint32]*InflightCmd
-	TcpConn      net.Conn
-	quit         chan int
-	errs         chan error
-	cmdSend      chan *InflightCmd
-	handlers     map[string]CommandHandler
+type CommandHandler func([]string) (string, uint32)
+
+type StatusHandler func(uint32, string)
+
+type StatusHandlerLink struct {
+	prefix  string
+	handler StatusHandler
 }
 
-type CommandHandler func([]string) (string, uint32)
+type TcpInterface struct {
+	Handle         uint32
+	Version        FlexVersion
+	CmdSeq         uint32
+	InflightCmds   map[uint32]*InflightCmd
+	TcpConn        net.Conn
+	quit           chan int
+	errs           chan error
+	cmdSend        chan *InflightCmd
+	cmdHandlers    map[string]CommandHandler
+	statusHandlers []StatusHandlerLink
+}
 
 func (vers *FlexVersion) String() string {
 	return fmt.Sprintf("%d.%d.%d.%d", vers.Major, vers.Minor, vers.DevA, vers.DevB)
@@ -49,21 +57,17 @@ func (vers *FlexVersion) String() string {
 
 func InitTcpInterface(connection net.Conn) (*TcpInterface, error) {
 	iface := &TcpInterface{
-		InflightCmds: make(map[uint32]*InflightCmd),
-		TcpConn:      connection,
-		errs:         make(chan error),
-		quit:         make(chan int),
-		cmdSend:      make(chan *InflightCmd),
-		CmdSeq:       10,
-		handlers:     make(map[string]CommandHandler),
+		InflightCmds:   make(map[uint32]*InflightCmd),
+		TcpConn:        connection,
+		errs:           make(chan error),
+		quit:           make(chan int),
+		cmdSend:        make(chan *InflightCmd),
+		CmdSeq:         10,
+		cmdHandlers:    make(map[string]CommandHandler),
+		statusHandlers: make([]StatusHandlerLink, 0),
 	}
 	return iface, nil
 }
-
-/*func (tcpi *TcpInterface) SendCommand(command string, callback func(string, int)) {
-	seq := atomic.AddUint32(&tcpi.CmdSeq, 1)
-	sendString = fmt.s
-}*/
 
 func (tcpi *TcpInterface) SendCommand(command string, callback func(string, uint32), timeout time.Duration) {
 	cmd := &InflightCmd{
@@ -110,7 +114,7 @@ func (tcpi *TcpInterface) handleCommand(cmdStr string) {
 		argv := strings.Split(fullCmd, " ")
 		if len(argv) >= 1 {
 			cmdIdx := argv[0]
-			cmdHandler := tcpi.handlers[cmdIdx]
+			cmdHandler := tcpi.cmdHandlers[cmdIdx]
 			if cmdHandler != nil {
 				respStr, respVal = cmdHandler(argv)
 			} else {
@@ -131,8 +135,36 @@ func (tcpi *TcpInterface) handleCommand(cmdStr string) {
 	}
 }
 
-func (tcpi *TcpInterface) RegisterCommand(cmd string, handler CommandHandler) {
-	tcpi.handlers[cmd] = handler
+func (tcpi *TcpInterface) handleStatus(status string) {
+	statSeg := strings.Split(status, "|")
+	if len(statSeg) >= 2 {
+		if len(statSeg[1]) <= 0 {
+			return
+		}
+		statStr := statSeg[1]
+		idHandler, err := strconv.ParseUint(statSeg[0], 16, 32)
+		if err != nil {
+			return
+		}
+		for _, handlerLink := range tcpi.statusHandlers {
+			if strings.HasPrefix(statStr, handlerLink.prefix) {
+				handlerLink.handler(uint32(idHandler), statStr)
+			}
+		}
+	}
+}
+
+func (tcpi *TcpInterface) RegisterCommandHandler(cmd string, handler CommandHandler) {
+	tcpi.cmdHandlers[cmd] = handler
+}
+
+func (tcpi *TcpInterface) RegisterStatusHandler(prefix string, handler StatusHandler) {
+	handlen := len(tcpi.statusHandlers)
+	newHandlers := make([]StatusHandlerLink, handlen+1)
+	copy(newHandlers, tcpi.statusHandlers)
+	newHandlers[handlen].handler = handler
+	newHandlers[handlen].prefix = prefix
+	tcpi.statusHandlers = newHandlers
 }
 
 func (tcpi *TcpInterface) InterfaceLoop() {
@@ -209,6 +241,8 @@ func (tcpi *TcpInterface) InterfaceLoop() {
 				}
 			case 'C':
 				tcpi.handleCommand(line[1:])
+			case 'S':
+				tcpi.handleStatus(line[1:])
 			}
 		}
 	}
@@ -216,5 +250,6 @@ func (tcpi *TcpInterface) InterfaceLoop() {
 }
 
 func (*TcpInterface) Close() {
+
 	return
 }

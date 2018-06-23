@@ -17,6 +17,7 @@ import (
 import (
 	"errors"
 	"net"
+	"time"
 )
 
 type Radio struct {
@@ -151,9 +152,41 @@ func (discli *DiscoveryClient) doDiscoveryListen() {
 }
 
 func (discli *DiscoveryClient) Close() {
-	// Optinally close discvoery client
+	// Send on quit channel if client is listening on the other end
 	select {
 	case discli.quit <- 1:
 	default:
 	}
+}
+
+/*
+ Start a discovery client instance on the default port,
+  discover a single radio or time out, and close
+*/
+func DiscoverRadio(timeout time.Duration) (*Radio, error) {
+	addr, err := net.ResolveUDPAddr("udp", ":4992")
+	if err != nil {
+		return nil, err
+	}
+	disClient, err := CreateDiscoveryClient(addr)
+	if err != nil {
+		return nil, err
+	}
+
+	go disClient.doDiscoveryListen()
+
+	select {
+	case <-time.After(timeout):
+		disClient.Close()
+		return nil, errors.New("Discovery client timed out")
+	case radio := <-disClient.radios:
+		disClient.Close()
+		return radio, nil
+	case err := <-disClient.errors:
+		disClient.Close()
+		return nil, err
+	}
+
+	return nil, nil
+
 }

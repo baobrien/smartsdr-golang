@@ -6,7 +6,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -19,16 +18,23 @@ func topError(err error) {
 }
 
 func main() {
-	/* Create and start the discovery client */
 
-	addr, err := net.ResolveUDPAddr("udp", "[::]:4992")
-	disClient, err := CreateDiscoveryClient(addr)
+	/* Discover a radio */
+	radio, err := DiscoverRadio(10 * time.Second)
 	if err != nil {
 		topError(err)
 	}
 
-	go disClient.doDiscoveryListen()
-	select {
+	fmt.Println("Found radio:", radio)
+
+	conn, err := net.Dial("tcp", radio.ip+":4992")
+	if err != nil {
+		topError(err)
+	}
+	api, err := InitTcpInterface(conn)
+	go api.InterfaceLoop()
+
+	/*select {
 	case radio := <-disClient.radios:
 		fmt.Println("Found Radio:", radio)
 		disClient.Close()
@@ -58,7 +64,7 @@ func main() {
 	case <-time.After(time.Second * 30):
 		disClient.Close()
 		topError(errors.New("Failed to find client after 30 seconds"))
-	}
+	}*/
 
 	os.Exit(0)
 }

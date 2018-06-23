@@ -59,9 +59,9 @@ func InitTcpInterface(connection net.Conn) (*TcpInterface, error) {
 	iface := &TcpInterface{
 		InflightCmds:   make(map[uint32]*InflightCmd),
 		TcpConn:        connection,
-		errs:           make(chan error),
+		errs:           make(chan error, 1),
 		quit:           make(chan int),
-		cmdSend:        make(chan *InflightCmd),
+		cmdSend:        make(chan *InflightCmd, 1),
 		CmdSeq:         10,
 		cmdHandlers:    make(map[string]CommandHandler),
 		statusHandlers: make([]StatusHandlerLink, 0),

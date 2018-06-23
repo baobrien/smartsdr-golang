@@ -38,7 +38,10 @@ type TcpInterface struct {
 	quit         chan int
 	errs         chan error
 	cmdSend      chan *InflightCmd
+	handlers     map[string]CommandHandler
 }
+
+type CommandHandler func([]string) (string, uint32)
 
 func (vers *FlexVersion) String() string {
 	return fmt.Sprintf("%d.%d.%d.%d", vers.Major, vers.Minor, vers.DevA, vers.DevB)
@@ -52,6 +55,7 @@ func InitTcpInterface(connection net.Conn) (*TcpInterface, error) {
 		quit:         make(chan int),
 		cmdSend:      make(chan *InflightCmd),
 		CmdSeq:       10,
+		handlers:     make(map[string]CommandHandler),
 	}
 	return iface, nil
 }
@@ -93,6 +97,44 @@ func (tcpi *TcpInterface) DoCommand(command string, timeout time.Duration) (stri
 	}
 }
 
+func (tcpi *TcpInterface) handleCommand(cmdStr string) {
+	cmdSegs := strings.Split(cmdStr, "|")
+	if len(cmdSegs) >= 2 {
+		cmdSeq, err := strconv.Atoi(cmdSegs[0])
+		if err != nil {
+			return
+		}
+		fullCmd := cmdSegs[1]
+		var respVal uint32
+		var respStr string
+		argv := strings.Split(fullCmd, " ")
+		if len(argv) >= 1 {
+			cmdIdx := argv[0]
+			cmdHandler := tcpi.handlers[cmdIdx]
+			if cmdHandler != nil {
+				respStr, respVal = cmdHandler(argv)
+			} else {
+				respStr = ""
+				respVal = 0x50000015
+			}
+			respWire := fmt.Sprintf("R%d|%x|%s\n", cmdSeq, respVal, respStr)
+			n, err := io.WriteString(tcpi.TcpConn, respWire)
+			if n == 0 {
+				tcpi.errs <- errors.New("TCP Socket Closed")
+				return
+			}
+			if err != nil {
+				tcpi.errs <- err
+				return
+			}
+		}
+	}
+}
+
+func (tcpi *TcpInterface) RegisterCommand(cmd string, handler CommandHandler) {
+	tcpi.handlers[cmd] = handler
+}
+
 func (tcpi *TcpInterface) InterfaceLoop() {
 	lineChan := make(chan string)
 	tcpErr := make(chan error)
@@ -104,7 +146,7 @@ func (tcpi *TcpInterface) InterfaceLoop() {
 				tcpErr <- err
 				return
 			}
-			lineChan <- line
+			lineChan <- line[:len(line)-1]
 		}
 	}()
 
@@ -165,6 +207,8 @@ func (tcpi *TcpInterface) InterfaceLoop() {
 						}
 					}
 				}
+			case 'C':
+				tcpi.handleCommand(line[1:])
 			}
 		}
 	}

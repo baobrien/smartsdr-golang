@@ -48,6 +48,8 @@ func main() {
 		}
 		fmt.Printf("Command returned status %x\n", restat)
 		fmt.Printf("%s\n", restr)
+		fmt.Printf("API Handle is %x\n", apiface.Handle)
+		fmt.Printf("API Version is %v\n", apiface.Version)
 	case err = <-disClient.errors:
 		topError(err)
 	case <-time.After(time.Second * 30):

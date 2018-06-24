@@ -45,6 +45,7 @@ type SmartAPIInterface struct {
 	InflightCmds   map[uint32]*InflightCmd
 	TcpConn        net.Conn
 	quit           chan int
+	pingQuit       chan int
 	errs           chan error
 	cmdSend        chan *InflightCmd
 	cmdHandlers    map[string]CommandHandler
@@ -75,7 +76,11 @@ func (tcpi *SmartAPIInterface) SendCommand(command string, callback func(string,
 		CommandText: command,
 		RespChan:    make(chan *CmdResponse),
 	}
-	tcpi.cmdSend <- cmd
+	select {
+	case tcpi.cmdSend <- cmd:
+	default:
+		return
+	}
 	go func() {
 		select {
 		case <-time.After(timeout):
@@ -92,7 +97,11 @@ func (tcpi *SmartAPIInterface) DoCommand(command string, timeout time.Duration) 
 		CommandText: command,
 		RespChan:    make(chan *CmdResponse),
 	}
-	tcpi.cmdSend <- cmd
+	select {
+	case tcpi.cmdSend <- cmd:
+	default:
+		return "", 0, errors.New("DoCommand: API loop not running")
+	}
 	select {
 	case <-time.After(timeout):
 		return "", 0, errors.New("DoCommand: Timeout Reached")
@@ -232,6 +241,7 @@ func (tcpi *SmartAPIInterface) InterfaceLoop() {
 					}
 					cmd := tcpi.InflightCmds[uint32(respSeq)]
 					if cmd != nil {
+						delete(tcpi.InflightCmds, uint32(respSeq))
 						resp := &CmdResponse{respStr, uint32(respVal)}
 						select {
 						case cmd.RespChan <- resp:
@@ -249,7 +259,30 @@ func (tcpi *SmartAPIInterface) InterfaceLoop() {
 
 }
 
-func (*SmartAPIInterface) Close() {
-
+func (api *SmartAPIInterface) Close() {
+	select {
+	case api.quit <- 1:
+	default:
+	}
+	select {
+	case api.pingQuit <- 1:
+	default:
+	}
 	return
+}
+
+// Loop to send ping commands to radio
+func (api *SmartAPIInterface) PingLoop() {
+	start := time.Now()
+	for {
+		elapsed := time.Since(start)
+		cmd := fmt.Sprintf("ping ms_timestamp=%f", float32(elapsed/time.Microsecond)/1000)
+		api.SendCommand(cmd, func(a string, b uint32) {}, time.Millisecond*100)
+		select {
+		case <-api.pingQuit:
+			break
+		default:
+		}
+		time.Sleep(time.Second * 2)
+	}
 }

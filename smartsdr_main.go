@@ -32,50 +32,29 @@ func main() {
 		topError(err)
 	}
 	api, err := InitAPIInterface(conn)
+	time.Sleep(1 * time.Second)
 	go api.InterfaceLoop()
+	go api.PingLoop()
+	go func() {
+		for {
+			err := <-api.errs
+			fmt.Println(err)
+		}
+	}()
+	api.RegisterStatusHandler("", func(handle uint32, status string) {
+		fmt.Println(status)
+	})
 
 	fmt.Println("Setting up Waveform:")
 	configFile, err := os.Open("FreeDV.cfg")
 	if err != nil {
 		topError(err)
 	}
+	defer configFile.Close()
 	err = RegisterWaveform(api, configFile)
 	if err != nil {
 		topError(err)
 	}
-
-	time.Sleep(2 * time.Second)
-	/*select {
-	case radio := <-disClient.radios:
-		fmt.Println("Found Radio:", radio)
-		disClient.Close()
-		fmt.Println("Connecting to radio")
-		conn, err := net.Dial("tcp", radio.ip+":4992")
-		if err != nil {
-			topError(err)
-		}
-		apiface, err := InitTcpInterface(conn)
-		apiface.RegisterStatusHandler("eq", func(handler uint32, s string) {
-			fmt.Println("status:", s)
-		})
-		if err != nil {
-			topError(err)
-		}
-		go apiface.InterfaceLoop()
-		restr, restat, err := apiface.DoCommand("info", 10*time.Second)
-		if err != nil {
-			topError(err)
-		}
-		fmt.Printf("Command returned status %x\n", restat)
-		fmt.Printf("%s\n", restr)
-		fmt.Printf("API Handle is %x\n", apiface.Handle)
-		fmt.Println("API Version is", apiface.Version)
-	case err = <-disClient.errors:
-		topError(err)
-	case <-time.After(time.Second * 30):
-		disClient.Close()
-		topError(errors.New("Failed to find client after 30 seconds"))
-	}*/
-
+	time.Sleep(time.Second * 100)
 	os.Exit(0)
 }

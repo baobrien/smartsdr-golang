@@ -2,6 +2,7 @@
  *
  * Copyright (C) 2018 Brady OBrien. All Rights Reserved.
  */
+
 package main
 
 import (
@@ -18,6 +19,7 @@ func discoveryGetUDPListener(addr *net.UDPAddr) (*os.File, error) {
 	var err error
 	var sockaddr unix.Sockaddr
 	ip := addr.IP
+	/* Set up an IPv4 or IPv6 sockaddr and socket for UDP */
 	if v4 := ip.To4(); v4 != nil {
 		sockaddr4 := &unix.SockaddrInet4{}
 		sockaddr4.Port = addr.Port
@@ -37,18 +39,22 @@ func discoveryGetUDPListener(addr *net.UDPAddr) (*os.File, error) {
 		}
 		sockaddr = sockaddr6
 	}
+	/* Set reuseaddr socket option so we can bind multiple times to the same port */
 	err = unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_REUSEADDR, 1)
 	if err != nil {
 		return nil, err
 	}
 
+	/* Bind the socket to the port*/
 	if err = unix.Bind(fd, sockaddr); err != nil {
 		return nil, err
 	}
 
+	/* Set socket nonblocking so go scheduler can work with it */
 	if err = unix.SetNonblock(fd, true); err != nil {
 		return nil, err
 	}
 
+	/* Return go file around file descriptor */
 	return os.NewFile(uintptr(fd), ""), nil
 }

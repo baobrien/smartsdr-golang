@@ -5,9 +5,9 @@ smartsdr-golang is an attempt to re-implement a 'waveform' plugin for FlexRadio 
 ## TODO
 [x] - discovery client
 
-[ ] - wfm->radio command interface (traffic_cop)
+[x] - wfm->radio command interface (traffic_cop)
 
-[ ] - radio->wfm command interface
+[x] - radio->wfm command interface
 
 [ ] - VITA49 stream rx'er and tx'er (hal_*)
 

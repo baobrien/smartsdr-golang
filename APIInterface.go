@@ -1,3 +1,8 @@
+/* SPDX-License-Identifier: GPL-3.0
+ *
+ * Copyright (C) 2018 Brady OBrien. All Rights Reserved.
+ */
+
 package main
 
 import (
@@ -11,6 +16,7 @@ import (
 	"time"
 )
 
+/* Flex API Version Info */
 type FlexVersion struct {
 	Major int
 	Minor int
@@ -18,6 +24,7 @@ type FlexVersion struct {
 	DevB  int
 }
 
+/* Response from command */
 type CmdResponse struct {
 	RespStr string
 	Status  uint32

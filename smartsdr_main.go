@@ -31,9 +31,20 @@ func main() {
 	if err != nil {
 		topError(err)
 	}
-	api, err := InitTcpInterface(conn)
+	api, err := InitAPIInterface(conn)
 	go api.InterfaceLoop()
 
+	fmt.Println("Setting up Waveform:")
+	configFile, err := os.Open("FreeDV.cfg")
+	if err != nil {
+		topError(err)
+	}
+	err = RegisterWaveform(api, configFile)
+	if err != nil {
+		topError(err)
+	}
+
+	time.Sleep(2 * time.Second)
 	/*select {
 	case radio := <-disClient.radios:
 		fmt.Println("Found Radio:", radio)

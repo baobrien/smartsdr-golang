@@ -61,6 +61,12 @@ func CreateDiscoveryClient(addr *net.UDPAddr) (*DiscoveryClient, error) {
 		quit:   make(chan int),
 	}
 	ulistenfile, err := discoveryGetUDPListener(addr)
+	if err != nil {
+		if ulistenfile != nil {
+			ulistenfile.Close()
+		}
+		return nil, err
+	}
 	ulisten, err := net.FilePacketConn(ulistenfile)
 	if err != nil {
 		if ulisten != nil {
@@ -164,7 +170,7 @@ func (discli *DiscoveryClient) Close() {
   discover a single radio or time out, and close
 */
 func DiscoverRadio(timeout time.Duration) (*Radio, error) {
-	addr, err := net.ResolveUDPAddr("udp", ":4992")
+	addr, err := net.ResolveUDPAddr("udp", "0.0.0.0:4992")
 	if err != nil {
 		return nil, err
 	}

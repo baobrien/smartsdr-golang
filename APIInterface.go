@@ -38,7 +38,7 @@ type StatusHandlerLink struct {
 	handler StatusHandler
 }
 
-type TcpInterface struct {
+type SmartAPIInterface struct {
 	Handle         uint32
 	Version        FlexVersion
 	CmdSeq         uint32
@@ -55,8 +55,8 @@ func (vers *FlexVersion) String() string {
 	return fmt.Sprintf("%d.%d.%d.%d", vers.Major, vers.Minor, vers.DevA, vers.DevB)
 }
 
-func InitTcpInterface(connection net.Conn) (*TcpInterface, error) {
-	iface := &TcpInterface{
+func InitAPIInterface(connection net.Conn) (*SmartAPIInterface, error) {
+	iface := &SmartAPIInterface{
 		InflightCmds:   make(map[uint32]*InflightCmd),
 		TcpConn:        connection,
 		errs:           make(chan error, 1),
@@ -69,7 +69,7 @@ func InitTcpInterface(connection net.Conn) (*TcpInterface, error) {
 	return iface, nil
 }
 
-func (tcpi *TcpInterface) SendCommand(command string, callback func(string, uint32), timeout time.Duration) {
+func (tcpi *SmartAPIInterface) SendCommand(command string, callback func(string, uint32), timeout time.Duration) {
 	cmd := &InflightCmd{
 		Seq:         0,
 		CommandText: command,
@@ -86,7 +86,7 @@ func (tcpi *TcpInterface) SendCommand(command string, callback func(string, uint
 	}()
 }
 
-func (tcpi *TcpInterface) DoCommand(command string, timeout time.Duration) (string, uint32, error) {
+func (tcpi *SmartAPIInterface) DoCommand(command string, timeout time.Duration) (string, uint32, error) {
 	cmd := &InflightCmd{
 		Seq:         0,
 		CommandText: command,
@@ -101,7 +101,7 @@ func (tcpi *TcpInterface) DoCommand(command string, timeout time.Duration) (stri
 	}
 }
 
-func (tcpi *TcpInterface) handleCommand(cmdStr string) {
+func (tcpi *SmartAPIInterface) handleCommand(cmdStr string) {
 	cmdSegs := strings.Split(cmdStr, "|")
 	if len(cmdSegs) >= 2 {
 		cmdSeq, err := strconv.Atoi(cmdSegs[0])
@@ -135,7 +135,7 @@ func (tcpi *TcpInterface) handleCommand(cmdStr string) {
 	}
 }
 
-func (tcpi *TcpInterface) handleStatus(status string) {
+func (tcpi *SmartAPIInterface) handleStatus(status string) {
 	statSeg := strings.Split(status, "|")
 	if len(statSeg) >= 2 {
 		if len(statSeg[1]) <= 0 {
@@ -154,11 +154,11 @@ func (tcpi *TcpInterface) handleStatus(status string) {
 	}
 }
 
-func (tcpi *TcpInterface) RegisterCommandHandler(cmd string, handler CommandHandler) {
+func (tcpi *SmartAPIInterface) RegisterCommandHandler(cmd string, handler CommandHandler) {
 	tcpi.cmdHandlers[cmd] = handler
 }
 
-func (tcpi *TcpInterface) RegisterStatusHandler(prefix string, handler StatusHandler) {
+func (tcpi *SmartAPIInterface) RegisterStatusHandler(prefix string, handler StatusHandler) {
 	handlen := len(tcpi.statusHandlers)
 	newHandlers := make([]StatusHandlerLink, handlen+1)
 	copy(newHandlers, tcpi.statusHandlers)
@@ -167,7 +167,7 @@ func (tcpi *TcpInterface) RegisterStatusHandler(prefix string, handler StatusHan
 	tcpi.statusHandlers = newHandlers
 }
 
-func (tcpi *TcpInterface) InterfaceLoop() {
+func (tcpi *SmartAPIInterface) InterfaceLoop() {
 	lineChan := make(chan string)
 	tcpErr := make(chan error)
 	go func() {
@@ -249,7 +249,7 @@ func (tcpi *TcpInterface) InterfaceLoop() {
 
 }
 
-func (*TcpInterface) Close() {
+func (*SmartAPIInterface) Close() {
 
 	return
 }

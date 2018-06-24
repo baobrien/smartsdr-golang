@@ -37,7 +37,6 @@ func discoveryGetUDPListener(addr *net.UDPAddr) (*os.File, error) {
 		}
 		sockaddr = sockaddr6
 	}
-
 	err = unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_REUSEADDR, 1)
 	if err != nil {
 		return nil, err

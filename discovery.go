@@ -9,8 +9,6 @@
 package main
 
 import (
-	"bytes"
-	"encoding/binary"
 	"fmt"
 	"os"
 )
@@ -83,10 +81,9 @@ func parseDiscoveryPacket(buf []byte) (*Radio, error) {
 		return nil, errors.New("parseDiscoveryPacket: packet too short")
 	}
 	v := &VitaIfDataHeader{}
-	r := bytes.NewReader(buf)
-	if err := binary.Read(r, binary.BigEndian, v); err != nil {
-		return nil, err
-	}
+
+	ReadVitaHeader(buf, v)
+
 	if v.ClassIDH != 0x00001C2D {
 		return nil, errors.New(fmt.Sprintf("parseDiscoveryPacket: Wrong OUI %08x", v.ClassIDH))
 	}
@@ -98,7 +95,7 @@ func parseDiscoveryPacket(buf []byte) (*Radio, error) {
 	}
 
 	radio := &Radio{}
-	discstr := string(buf[len(buf)-r.Len():])
+	discstr := string(buf[28:])
 	for k, v := range detokenize(discstr) {
 		switch k {
 		case "discovery_protocol_version":

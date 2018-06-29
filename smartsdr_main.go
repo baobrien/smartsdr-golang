@@ -30,7 +30,8 @@ func StartVitaEchoer(vif *VitaInterface) {
 		TimestampFracL: 0,
 		TimestampInt:   0,
 	}
-	go StVitaOutputF(ch2, vif, templateHeader)
+	go StVitaOutputF(ch1, vif, templateHeader)
+
 }
 
 func main() {
@@ -51,7 +52,7 @@ func main() {
 	api, err := InitAPIInterface(conn)
 	time.Sleep(1 * time.Second)
 	go api.InterfaceLoop()
-	go api.PingLoop(time.Second * 1)
+	go api.PingLoop(time.Second * 10)
 	/* Simple loop to print API errors */
 	go func() {
 		for {
@@ -81,7 +82,7 @@ func main() {
 	if err != nil {
 		topError(err)
 	}
-	connVitaRadio, err := net.ResolveUDPAddr("udp", radio.ip+":4993")
+	connVitaRadio, err := net.ResolveUDPAddr("udp", radio.ip+":4991")
 	if err != nil {
 		topError(err)
 	}

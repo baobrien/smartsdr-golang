@@ -25,7 +25,8 @@ type VitaBufferPool struct {
 type StreamSubscriber func(*VitaIFData, *VitaBufferPool)
 
 type VitaInterface struct {
-	Conn         net.PacketConn // UDP Connection
+	Conn         *net.UDPConn // UDP Connection
+	SendConn     *net.UDPConn // Sender connection
 	BufBag       *VitaBufferPool
 	Subscribers  map[uint32]StreamSubscriber
 	SendChannel  chan *VitaIFData
@@ -64,7 +65,12 @@ func (pool *VitaBufferPool) releasePB(buf []byte, pkt *VitaIFData) {
 }*/
 
 func InitVitaListener(localaddr, remoteaddr *net.UDPAddr) (*VitaInterface, error) {
-	conn, err := net.DialUDP("udp", localaddr, remoteaddr)
+	conn, err := net.ListenUDP("udp", localaddr)
+	if err != nil {
+		return nil, err
+	}
+	addr2, err := net.ResolveUDPAddr("udp", "0.0.0.0:5001")
+	sendConn, err := net.DialUDP("udp", addr2, remoteaddr)
 	if err != nil {
 		return nil, err
 	}
@@ -75,6 +81,7 @@ func InitVitaListener(localaddr, remoteaddr *net.UDPAddr) (*VitaInterface, error
 		BufBag:       CreateVitaBufferPool(BUF_POOL_SIZE),
 		SendChannel:  make(chan *VitaIFData, 10),
 		SendCounters: make(map[uint32]uint64),
+		SendConn:     sendConn,
 		Subscribers:  make(map[uint32]StreamSubscriber),
 	}
 
@@ -155,6 +162,7 @@ func PackVifSendPacket(packet *VitaIFData, buffer []byte, seq uint32) int {
 	b.BigEndian.PutUint32(buffer[16:], packet.Header.TimestampInt)
 	b.BigEndian.PutUint32(buffer[20:], packet.Header.TimestampFracH)
 	b.BigEndian.PutUint32(buffer[24:], packet.Header.TimestampFracL)
+	copy(buffer[28:], packet.DataBytes)
 
 	return packetBytes
 }
@@ -163,14 +171,13 @@ func (vif *VitaInterface) VitaSenderLoop() error {
 	sendBuf := make([]byte, MAX_PACKET_LEN)
 	for {
 		pkt := <-vif.SendChannel
-
 		/* Increment stream counter and sequence number */
 		vif.SendCounters[pkt.Header.StreamID]++
 		count := vif.SendCounters[pkt.Header.StreamID]
 
 		n := PackVifSendPacket(pkt, sendBuf, uint32(count))
 		if n > 0 {
-			m, err := vif.Conn.WriteTo(sendBuf[:n], vif.RemoteAddr)
+			m, err := vif.SendConn.Write(sendBuf[:n])
 			if err != nil {
 				//TODO: error handling here
 				break

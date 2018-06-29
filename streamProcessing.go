@@ -15,6 +15,7 @@ func StVitaInputF(outputChan chan []float32) StreamSubscriber {
 		samps := VitaToFloat(pkt)
 		pool.releasePB(pkt.RawPacketBuffer, pkt)
 		outputChan <- samps
+
 	}
 }
 

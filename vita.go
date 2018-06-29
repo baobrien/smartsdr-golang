@@ -117,6 +117,14 @@ func ReadVitaHeaderStream(rawPkt []byte, header *VitaIfDataHeader) (bool, int, i
 	return true, payloadWords - headerWords - trailerWords, headerWords
 }
 
+func FltMean(in []float32) float32 {
+	var sum float32 = 0.0
+	for _, v := range in {
+		sum += (v * v)
+	}
+	return sum / (float32(len(in)))
+}
+
 const MAX_SAMP_PER_FRAME = 128
 
 /* TODO: More efficent complex unpacking */
@@ -142,10 +150,9 @@ func VitaToFloat(vpkt *VitaIFData) []float32 {
 
 	for i := 0; i < pktSamps; i++ {
 		/* Flex only uses the real part for float-only streams */
-		realu32 := b.BigEndian.Uint32(vpkt.DataBytes[(i * 8):])
+		realu32 := b.BigEndian.Uint32(vpkt.DataBytes[(i*8)+4:])
 		samples[i] = math.Float32frombits(realu32)
 	}
-
 	return samples
 }
 

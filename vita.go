@@ -9,6 +9,7 @@ package main
 
 import (
 	b "encoding/binary"
+	"math"
 )
 
 /* Header of VITA-49 packet without payload */
@@ -44,9 +45,9 @@ func ReadVitaHeader(rawPkt []byte, header *VitaIfDataHeader) bool {
 	return true
 }
 
-func ReadVitaHeaderStream(rawPkt []byte, header *VitaIfDataHeader, payloadSize *int) bool {
+func ReadVitaHeaderStream(rawPkt []byte, header *VitaIfDataHeader) (bool, int, int) {
 	if len(rawPkt) < 4 {
-		return false
+		return false, 0, 0
 	}
 	headerWord := b.BigEndian.Uint32(rawPkt[:])
 	payloadWords := int(headerWord & VITA_HEADER_PACKET_SIZE_MASK)
@@ -66,7 +67,7 @@ func ReadVitaHeaderStream(rawPkt []byte, header *VitaIfDataHeader, payloadSize *
 	}
 
 	if headerWord&VITA_HEADER_C_MASK > 0 {
-		headerWords += 1
+		headerWords += 2
 		hasCID = true
 	}
 
@@ -75,7 +76,7 @@ func ReadVitaHeaderStream(rawPkt []byte, header *VitaIfDataHeader, payloadSize *
 	}
 
 	if headerWord&VITA_HEADER_TSF_MASK != VITA_TSF_NONE {
-		headerWords += 1
+		headerWords += 2
 		hasTSF = true
 	}
 
@@ -85,7 +86,7 @@ func ReadVitaHeaderStream(rawPkt []byte, header *VitaIfDataHeader, payloadSize *
 	}
 
 	if len(rawPkt) < headerWords*4 {
-		return false
+		return false, 0, 0
 	}
 
 	*header = VitaIfDataHeader{0, 0, 0, 0, 0, 0, 0}
@@ -113,11 +114,72 @@ func ReadVitaHeaderStream(rawPkt []byte, header *VitaIfDataHeader, payloadSize *
 		wordPtr += 8
 	}
 
-	if payloadSize != nil {
-		*payloadSize = payloadWords - headerWords - trailerWords
+	return true, payloadWords - headerWords - trailerWords, headerWords
+}
+
+const MAX_SAMP_PER_FRAME = 128
+
+/* TODO: More efficent complex unpacking */
+/* TODO: Buffer pool ? */
+/* Extract a buffer of complex numbers from a raw VITA-49 packet */
+func VitaToComplex(vpkt *VitaIFData) []complex64 {
+	pktSamps := len(vpkt.DataBytes) / 8
+	samples := make([]complex64, pktSamps)
+
+	for i := 0; i < pktSamps; i++ {
+		realu32 := b.BigEndian.Uint32(vpkt.DataBytes[(i * 8):])
+		imagu32 := b.BigEndian.Uint32(vpkt.DataBytes[(i*8)+4:])
+		samples[i] = complex(math.Float32frombits(realu32), math.Float32frombits(imagu32))
 	}
 
-	return true
+	return samples
+}
+
+/* Extract a buffer of float32 from a raw VITA-49 packet */
+func VitaToFloat(vpkt *VitaIFData) []float32 {
+	pktSamps := len(vpkt.DataBytes) / 8
+	samples := make([]float32, pktSamps)
+
+	for i := 0; i < pktSamps; i++ {
+		/* Flex only uses the real part for float-only streams */
+		realu32 := b.BigEndian.Uint32(vpkt.DataBytes[(i * 8):])
+		samples[i] = math.Float32frombits(realu32)
+	}
+
+	return samples
+}
+
+/* Pack complex samples into a VITA frame and return the number of samples packed */
+func ComplexToVitaFrame(vpkt *VitaIFData, buf []complex64) int {
+	nSamp := len(buf)
+	if nSamp > MAX_SAMP_PER_FRAME {
+		nSamp = MAX_SAMP_PER_FRAME
+	}
+	for i := 0; i < nSamp; i++ {
+		realu32 := math.Float32bits(real(buf[i]))
+		imagu32 := math.Float32bits(imag(buf[i]))
+		b.BigEndian.PutUint32(vpkt.DataBytes[i*8:], realu32)
+		b.BigEndian.PutUint32(vpkt.DataBytes[(i*8)+4:], imagu32)
+
+	}
+	vpkt.DataBytes = vpkt.DataBytes[:nSamp*8]
+	return nSamp
+}
+
+/* Pack float samples into a VITA frame and return the number of samples packed */
+func FloatToVitaFrame(vpkt *VitaIFData, buf []float32) int {
+	nSamp := len(buf)
+	if nSamp > MAX_SAMP_PER_FRAME {
+		nSamp = MAX_SAMP_PER_FRAME
+	}
+	for i := 0; i < nSamp; i++ {
+		realu32 := math.Float32bits(buf[i])
+		b.BigEndian.PutUint32(vpkt.DataBytes[i*8:], realu32)
+		b.BigEndian.PutUint32(vpkt.DataBytes[(i*8)+4:], realu32)
+
+	}
+	vpkt.DataBytes = vpkt.DataBytes[:nSamp*8]
+	return nSamp
 }
 
 /* Constants taken from vita.h */
@@ -147,3 +209,10 @@ const VITA_HEADER_PACKET_SIZE_MASK uint32 = 0x0000FFFF
 const VITA_CLASS_ID_OUI_MASK uint32 = 0x00FFFFFF
 const VITA_CLASS_ID_INFORMATION_CLASS_MASK uint32 = 0xFFFF0000
 const VITA_CLASS_ID_PACKET_CLASS_MASK uint32 = 0x0000FFFF
+
+const SL_VITA_INFO_CLASS uint32 = 0x534C
+const SL_CLASS_SAMPLING_24KHZ uint32 = 0x03
+const SL_CLASS_32BPS uint32 = (3 << 5)
+const SL_CLASS_AUDIO_STEREO uint32 = (0x3 << 7)
+const SL_CLASS_IEEE_754 uint32 = (0x1 << 9)
+const SL_VITA_SLICE_AUDIO_CLASS uint32 = (SL_VITA_INFO_CLASS << 16) | SL_CLASS_SAMPLING_24KHZ | SL_CLASS_32BPS | SL_CLASS_AUDIO_STEREO | SL_CLASS_IEEE_754

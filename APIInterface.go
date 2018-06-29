@@ -279,7 +279,7 @@ func (api *SmartAPIInterface) Close() {
 }
 
 // Loop to send ping commands to radio
-func (api *SmartAPIInterface) PingLoop() {
+func (api *SmartAPIInterface) PingLoop(frequency time.Duration) {
 	start := time.Now()
 	for {
 		elapsed := time.Since(start)
@@ -290,6 +290,6 @@ func (api *SmartAPIInterface) PingLoop() {
 			break
 		default:
 		}
-		time.Sleep(time.Second * 2)
+		time.Sleep(frequency)
 	}
 }

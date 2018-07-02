@@ -5,6 +5,11 @@
 
 package main
 
+import (
+	"fmt"
+	"time"
+)
+
 /*
  * StVitaInputF creates a stream subscriber function. The returned function
  * takes a VITA packet, extracts float samples, and shoves it down the
@@ -33,6 +38,7 @@ func StVitaOutputF(inputChan chan []float32, vif *VitaInterface, headerPrototype
 		}
 		n := 0
 		for n < len(bufIn) {
+			bufSend := bufIn[n:]
 			/* Grab a packet and buffer */
 			buf, pkt := vif.BufBag.grabPB()
 			pkt.RawPacketBuffer = buf
@@ -40,8 +46,7 @@ func StVitaOutputF(inputChan chan []float32, vif *VitaInterface, headerPrototype
 			/* Copy prototype header data in */
 			pkt.Header = *headerPrototype
 
-			n += FloatToVitaFrame(pkt, bufIn)
-
+			n += FloatToVitaFrame(pkt, bufSend)
 			vif.SendChannel <- pkt
 		}
 	}
@@ -51,7 +56,7 @@ func StVitaOutputF(inputChan chan []float32, vif *VitaInterface, headerPrototype
 /*
  * Create a stream processor function which accumulates some number of samples before sending a buffer off
  */
-func StAccumulatorF(inputChan chan []float32, outputChan chan []float32, naccum int) {
+func StAccumulatorF(inputChan, outputChan chan []float32, naccum int) {
 	accumulator := make([]float32, naccum)
 	nInBuf := 0
 	for {
@@ -71,4 +76,77 @@ func StAccumulatorF(inputChan chan []float32, outputChan chan []float32, naccum 
 			bufIn = bufIn[n:]
 		}
 	}
+}
+
+/* */
+func SampCtrF(inputChan, outputChan chan []float32, name string, interval time.Duration) uint64 {
+	sampCount := uint64(0)
+	buf := <-inputChan
+	start := time.Now()
+	lastPrint := time.Now()
+	for {
+		if buf == nil {
+			outputChan <- nil
+			break
+		}
+		sampCount += uint64(len(buf))
+		outputChan <- buf
+
+		if time.Since(lastPrint) > interval && interval > 0 {
+			sF := float64(sampCount)
+			tF := float64(time.Since(start)) / float64(time.Second)
+			rate := sF / tF
+			fmt.Printf("%s: %v samples, %f samples/s\n", name, sampCount, rate)
+			lastPrint = time.Now()
+			sampCount = 0
+			start = lastPrint
+		}
+		buf = <-inputChan
+	}
+	return sampCount
+}
+
+func StDelatentizerF(i1, o1, i2, o2 chan []float32, maxdisp int) {
+	dispCnt := make(chan int, 10)
+
+	// Input Track Process
+	go func() {
+		for {
+			buf := <-i1
+			if buf == nil {
+				o1 <- nil
+				break
+			}
+			dispCnt <- len(buf)
+			o1 <- buf
+		}
+	}()
+
+	// Output Track Process
+	go func() {
+		rundisp := 0
+		last := time.Now()
+		for {
+			select {
+			case rsc := <-dispCnt:
+				rundisp += rsc
+				if rundisp > maxdisp {
+					fmt.Printf("Correcting RD by %d\n", rundisp)
+					o2 <- make([]float32, rundisp)
+					rundisp = 0
+				}
+			case buf := <-i2:
+				if buf == nil {
+					o2 <- nil
+					break
+				}
+				rundisp -= len(buf)
+				o2 <- buf
+			}
+			if time.Since(last) > time.Second {
+				fmt.Printf("RD is %d\n", rundisp)
+				last = time.Now()
+			}
+		}
+	}()
 }

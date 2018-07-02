@@ -53,6 +53,46 @@ func StartVitaEchoer(vif *VitaInterface) {
 
 }
 
+func StartFdvRxer(vif *VitaInterface) {
+	ch := make([]chan []float32, 6)
+	for v := range ch {
+		ch[v] = make(chan []float32, 2)
+	}
+	chp := 0
+
+	/* Add vita to []float input thing */
+	vif.Subscribers[0x81000000] = StVitaInputF(ch[chp])
+
+	go SampCtrF(ch[chp], ch[chp+1], "RX In ", time.Second)
+	chp++
+
+	/* Start 24Khz to 8Khz stage */
+	go StResamp24to8F(ch[chp], ch[chp+1], 256)
+	chp++
+
+	fdv, _ := FreedvOpen(FREEDV_MODE_700C)
+	go StFreedvRxF(ch[chp], ch[chp+1], fdv)
+	chp++
+
+	/* Start 8Khz to 24Khz stage */
+	go StResamp8to24F(ch[chp], ch[chp+1], 256)
+	chp++
+
+	go SampCtrF(ch[chp], ch[chp+1], "RX Out", time.Second)
+	chp++
+
+	templateHeader := &VitaIfDataHeader{
+		StreamID:       0x81000000,
+		ClassIDH:       0x00001C2D,
+		ClassIDL:       SL_VITA_SLICE_AUDIO_CLASS,
+		TimestampFracH: 0,
+		TimestampFracL: 0,
+		TimestampInt:   0,
+	}
+	go StVitaOutputF(ch[chp], vif, templateHeader)
+
+}
+
 func StartVitaEchoer2(vif *VitaInterface) {
 	ch0 := make(chan []float32, 2)
 	ch1 := make(chan []float32, 2)
@@ -150,7 +190,7 @@ func main() {
 		pool.releasePB(pkt.RawPacketBuffer, pkt)
 	}*/
 
-	StartVitaEchoer2(vitaListener)
+	StartFdvRxer(vitaListener)
 	go func() {
 		serr := vitaListener.VitaListenLoop()
 		if serr != nil {
